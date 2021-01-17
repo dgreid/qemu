@@ -1827,6 +1827,18 @@ static int vhost_user_postcopy_notifier(NotifierWithReturn *notifier,
     return 0;
 }
 
+static const int user_feature_bits[] = {
+    0,1,30,
+    VHOST_INVALID_FEATURE_BIT
+};
+
+static void vhost_user_ack_features(struct vhost_dev *dev, uint64_t features)
+{
+    dev->acked_features = dev->backend_features;
+    vhost_ack_features(dev, user_feature_bits, features);
+    printf("acked %lx\n", dev->acked_features);
+}
+
 static int vhost_user_backend_init(struct vhost_dev *dev, void *opaque)
 {
     uint64_t features, protocol_features, ram_slots;
@@ -1846,6 +1858,7 @@ static int vhost_user_backend_init(struct vhost_dev *dev, void *opaque)
     if (err < 0) {
         return err;
     }
+    vhost_user_ack_features(dev,features);
 
     if (virtio_has_feature(features, VHOST_USER_F_PROTOCOL_FEATURES)) {
         dev->backend_features |= 1ULL << VHOST_USER_F_PROTOCOL_FEATURES;
