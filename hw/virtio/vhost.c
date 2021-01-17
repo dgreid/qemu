@@ -801,6 +801,7 @@ static int vhost_dev_set_features(struct vhost_dev *dev,
             features |= 0x1ULL << VIRTIO_F_IOMMU_PLATFORM;
        }
     }
+    printf("%s %lx\n", __func__, features);
     r = dev->vhost_ops->vhost_set_features(dev, features);
     if (r < 0) {
         VHOST_OPS_DEBUG("vhost_set_features failed");
@@ -823,6 +824,7 @@ static int vhost_dev_set_log(struct vhost_dev *dev, bool enable_log)
     int r, i, idx;
     hwaddr addr;
 
+    printf("dg-- %s %u\n", __func__,__LINE__);
     r = vhost_dev_set_features(dev, enable_log);
     if (r < 0) {
         goto err_features;
@@ -852,6 +854,7 @@ err_vq:
         vhost_virtqueue_set_addr(dev, dev->vqs + i, idx,
                                  dev->log_enabled);
     }
+    printf("dg-- %s %u\n", __func__,__LINE__);
     vhost_dev_set_features(dev, dev->log_enabled);
 err_features:
     return r;
@@ -1060,6 +1063,7 @@ static int vhost_virtqueue_start(struct vhost_dev *dev,
     };
     struct VirtQueue *vvq = virtio_get_queue(vdev, idx);
 
+    printf("dg-- virtqueue start\n");
     a = virtio_queue_get_desc_addr(vdev, idx);
     if (a == 0) {
         /* Queue might not be ready for start */
@@ -1117,6 +1121,8 @@ static int vhost_virtqueue_start(struct vhost_dev *dev,
         goto fail_alloc;
     }
 
+    printf("dg-- virtqueue start - addr set\n");
+
     file.fd = event_notifier_get_fd(virtio_queue_get_host_notifier(vvq));
     r = dev->vhost_ops->vhost_set_vring_kick(dev, &file);
     if (r) {
@@ -1125,6 +1131,7 @@ static int vhost_virtqueue_start(struct vhost_dev *dev,
         goto fail_kick;
     }
 
+    printf("dg-- virtqueue start - kick set\n");
     /* Clear and discard previous events if any. */
     event_notifier_test_and_clear(&vq->masked_notifier);
 
@@ -1140,6 +1147,7 @@ static int vhost_virtqueue_start(struct vhost_dev *dev,
         k->query_guest_notifiers(qbus->parent) &&
         virtio_queue_vector(vdev, idx) == VIRTIO_NO_VECTOR) {
         file.fd = -1;
+	printf("dg-- virtqueue start - set call\n");
         r = dev->vhost_ops->vhost_set_vring_call(dev, &file);
         if (r) {
             goto fail_vector;
@@ -1306,6 +1314,7 @@ int vhost_dev_init(struct vhost_dev *hdev, void *opaque,
         VHOST_OPS_DEBUG("vhost_get_features failed");
         goto fail;
     }
+    printf("vhost_get_features %lx\n", features);
 
     for (i = 0; i < hdev->nvqs; ++i, ++n_initialized_vqs) {
         r = vhost_virtqueue_init(hdev, hdev->vqs + i, hdev->vq_index + i);
@@ -1541,9 +1550,11 @@ void vhost_ack_features(struct vhost_dev *hdev, const int *feature_bits,
                         uint64_t features)
 {
     const int *bit = feature_bits;
+    printf("\n\n%s %lx\n", __func__, features);
     while (*bit != VHOST_INVALID_FEATURE_BIT) {
         uint64_t bit_mask = (1ULL << *bit);
         if (features & bit_mask) {
+		printf("\n\n%s set %lx\n", __func__, bit_mask);
             hdev->acked_features |= bit_mask;
         }
         bit++;
@@ -1656,6 +1667,7 @@ int vhost_dev_prepare_inflight(struct vhost_dev *hdev, VirtIODevice *vdev)
 
     hdev->vdev = vdev;
 
+    printf("dg-- %s %u\n", __func__,__LINE__);
     r = vhost_dev_set_features(hdev, hdev->log_enabled);
     if (r < 0) {
         VHOST_OPS_DEBUG("vhost_dev_prepare_inflight failed");
@@ -1708,6 +1720,7 @@ int vhost_dev_start(struct vhost_dev *hdev, VirtIODevice *vdev)
     hdev->started = true;
     hdev->vdev = vdev;
 
+    printf("%s set_features %lx\n", __func__, hdev->acked_features);
     r = vhost_dev_set_features(hdev, hdev->log_enabled);
     if (r < 0) {
         goto fail_features;
@@ -1724,10 +1737,12 @@ int vhost_dev_start(struct vhost_dev *hdev, VirtIODevice *vdev)
         goto fail_mem;
     }
     for (i = 0; i < hdev->nvqs; ++i) {
+	    printf("dg-- virt queue start %d\n", i);
         r = vhost_virtqueue_start(hdev,
                                   vdev,
                                   hdev->vqs + i,
                                   hdev->vq_index + i);
+	    printf("dg-- virt queue start returned %d\n", r);
         if (r < 0) {
             goto fail_vq;
         }
@@ -1750,7 +1765,9 @@ int vhost_dev_start(struct vhost_dev *hdev, VirtIODevice *vdev)
         }
     }
     if (hdev->vhost_ops->vhost_dev_start) {
+	    printf(" dev start\n");
         r = hdev->vhost_ops->vhost_dev_start(hdev, true);
+	    printf(" dev started %d\n", r);
         if (r) {
             goto fail_log;
         }

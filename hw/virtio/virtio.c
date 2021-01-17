@@ -2956,6 +2956,7 @@ static int virtio_set_features_nocheck(VirtIODevice *vdev, uint64_t val)
 int virtio_set_features(VirtIODevice *vdev, uint64_t val)
 {
     int ret;
+    printf("%s start %lx\n",__func__,val);
     /*
      * The driver must not attempt to set features after feature negotiation
      * has finished.
@@ -2964,6 +2965,7 @@ int virtio_set_features(VirtIODevice *vdev, uint64_t val)
         return -EINVAL;
     }
     ret = virtio_set_features_nocheck(vdev, val);
+    printf("%s set %lx returned %d\n",__func__,val,ret);
     if (virtio_vdev_has_feature(vdev, VIRTIO_RING_F_EVENT_IDX)) {
         /* VIRTIO_RING_F_EVENT_IDX changes the size of the caches.  */
         int i;
@@ -3107,6 +3109,7 @@ int virtio_load(VirtIODevice *vdev, QEMUFile *f, int version_id)
         vdev->device_endian = virtio_default_endian();
     }
 
+    printf("%s post load pre check %lx\n", __func__,vdev->guest_features);
     if (virtio_64bit_features_needed(vdev)) {
         /*
          * Subsection load filled vdev->guest_features.  Run them

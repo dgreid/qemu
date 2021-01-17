@@ -130,6 +130,7 @@ static int vhost_user_blk_start(VirtIODevice *vdev)
         goto err_host_notifiers;
     }
 
+    printf("user blk: %s set features to %lx\n", __func__,vdev->guest_features);
     s->dev.acked_features = vdev->guest_features;
 
     ret = vhost_dev_prepare_inflight(&s->dev, vdev);

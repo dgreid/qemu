@@ -301,10 +301,12 @@ static int vhost_user_read(struct vhost_dev *dev, VhostUserMsg *msg)
     uint8_t *p = (uint8_t *) msg;
     int r, size;
 
+	    printf("read header\n");
     if (vhost_user_read_header(dev, msg) < 0) {
         return -1;
     }
 
+	    printf("header %u\n", msg->hdr.request);
     /* validate message size is sane */
     if (msg->hdr.size > VHOST_USER_PAYLOAD_SIZE) {
         error_report("Failed to read msg header."
@@ -314,10 +316,12 @@ static int vhost_user_read(struct vhost_dev *dev, VhostUserMsg *msg)
     }
 
     if (msg->hdr.size) {
+	    printf("read body %u\n", msg->hdr.size);
         p += VHOST_USER_HDR_SIZE;
         size = msg->hdr.size;
         r = qemu_chr_fe_read_all(chr, p, size);
         if (r != size) {
+	    printf("read body size mismatch %d\n", r);
             error_report("Failed to read msg payload."
                          " Read %d instead of %d.", r, msg->hdr.size);
             return -1;
@@ -333,16 +337,19 @@ static int process_message_reply(struct vhost_dev *dev,
     VhostUserMsg msg_reply;
 
     if ((msg->hdr.flags & VHOST_USER_NEED_REPLY_MASK) == 0) {
+        printf("process_message_reply mask not set %u\n", __LINE__);
         return 0;
     }
 
     if (vhost_user_read(dev, &msg_reply) < 0) {
+        printf("user_read_fail %u\n", __LINE__);
         return -1;
     }
+    printf("process_message_reply %u %u\n", msg_reply.hdr.request,__LINE__);
 
     if (msg_reply.hdr.request != msg->hdr.request) {
-        error_report("Received unexpected msg type."
-                     "Expected %d received %d",
+        printf("Received unexpected msg type."
+                     "Expected %d received %d\n",
                      msg->hdr.request, msg_reply.hdr.request);
         return -1;
     }
@@ -433,6 +440,7 @@ static int vhost_user_set_log_base(struct vhost_dev *dev, uint64_t base,
     if (shmfd) {
         msg.hdr.size = 0;
         if (vhost_user_read(dev, &msg) < 0) {
+        error_report("user_read_fail %u", __LINE__);
             return -1;
         }
 
@@ -658,7 +666,9 @@ static int send_remove_regions(struct vhost_dev *dev,
             }
 
             if (reply_supported) {
+		    printf("process reply start %d\n", __LINE__);
                 ret = process_message_reply(dev, msg);
+		    printf("process reply end %d\n", __LINE__);
                 if (ret) {
                     return ret;
                 }
@@ -721,6 +731,7 @@ static int send_add_regions(struct vhost_dev *dev,
                 uint64_t reply_gpa;
 
                 if (vhost_user_read(dev, &msg_reply) < 0) {
+        error_report("user_read_fail %u", __LINE__);
                     return -1;
                 }
 
@@ -761,7 +772,9 @@ static int send_add_regions(struct vhost_dev *dev,
                     return -1;
                 }
             } else if (reply_supported) {
+		    printf("process reply start %d\n", __LINE__);
                 ret = process_message_reply(dev, msg);
+		    printf("process reply end %d\n", __LINE__);
                 if (ret) {
                     return ret;
                 }
@@ -888,6 +901,7 @@ static int vhost_user_set_mem_table_postcopy(struct vhost_dev *dev,
         }
 
         if (vhost_user_read(dev, &msg_reply) < 0) {
+        error_report("user_read_fail %u", __LINE__);
             return -1;
         }
 
@@ -986,11 +1000,13 @@ static int vhost_user_set_mem_table(struct vhost_dev *dev,
     }
 
     if (config_mem_slots) {
+	    printf("dg-- config_mem_slots\n");
         if (vhost_user_add_remove_regions(dev, &msg, reply_supported,
                                           false) < 0) {
             return -1;
         }
     } else {
+	    printf("dg-- not config_mem_slots\n");
         if (vhost_user_fill_set_mem_table_msg(u, dev, &msg, fds, &fd_num,
                                               false) < 0) {
             return -1;
@@ -1000,7 +1016,10 @@ static int vhost_user_set_mem_table(struct vhost_dev *dev,
         }
 
         if (reply_supported) {
-            return process_message_reply(dev, &msg);
+		    printf("process reply start %d\n", __LINE__);
+            int ret = process_message_reply(dev, &msg);
+		    printf("process reply end %d\n", __LINE__);
+		    return ret;
         }
     }
 
@@ -1143,6 +1162,7 @@ static int vhost_user_get_vring_base(struct vhost_dev *dev,
     }
 
     if (vhost_user_read(dev, &msg) < 0) {
+        error_report("user_read_fail %u", __LINE__);
         return -1;
     }
 
@@ -1153,7 +1173,7 @@ static int vhost_user_get_vring_base(struct vhost_dev *dev,
     }
 
     if (msg.hdr.size != sizeof(msg.payload.state)) {
-        error_report("Received bad msg size.");
+        error_report("Received bad msg size. 0");
         return -1;
     }
 
@@ -1219,12 +1239,14 @@ static int vhost_user_set_u64(struct vhost_dev *dev, int request, uint64_t u64)
 static int vhost_user_set_features(struct vhost_dev *dev,
                                    uint64_t features)
 {
+	printf("%s - %lx\n",__func__,features);
     return vhost_user_set_u64(dev, VHOST_USER_SET_FEATURES, features);
 }
 
 static int vhost_user_set_protocol_features(struct vhost_dev *dev,
                                             uint64_t features)
 {
+	printf("%s - %lx\n",__func__,features);
     return vhost_user_set_u64(dev, VHOST_USER_SET_PROTOCOL_FEATURES, features);
 }
 
@@ -1244,6 +1266,7 @@ static int vhost_user_get_u64(struct vhost_dev *dev, int request, uint64_t *u64)
     }
 
     if (vhost_user_read(dev, &msg) < 0) {
+        error_report("user_read_fail %u", __LINE__);
         return -1;
     }
 
@@ -1254,7 +1277,7 @@ static int vhost_user_get_u64(struct vhost_dev *dev, int request, uint64_t *u64)
     }
 
     if (msg.hdr.size != sizeof(msg.payload.u64)) {
-        error_report("Received bad msg size.");
+        error_report("Received bad msg size. 1");
         return -1;
     }
 
@@ -1265,7 +1288,10 @@ static int vhost_user_get_u64(struct vhost_dev *dev, int request, uint64_t *u64)
 
 static int vhost_user_get_features(struct vhost_dev *dev, uint64_t *features)
 {
-    return vhost_user_get_u64(dev, VHOST_USER_GET_FEATURES, features);
+	printf("get_features\n");
+    int ret = vhost_user_get_u64(dev, VHOST_USER_GET_FEATURES, features);
+	printf("get_features %d %lx\n",ret,*features);
+    return ret;
 }
 
 static int vhost_user_set_owner(struct vhost_dev *dev)
@@ -1559,7 +1585,9 @@ static int vhost_setup_slave_channel(struct vhost_dev *dev)
     }
 
     if (reply_supported) {
+		    printf("process reply ssc start %d\n", __LINE__);
         ret = process_message_reply(dev, &msg);
+		    printf("process reply ssc end ret: %d %d\n", ret, __LINE__);
     }
 
 out:
@@ -1664,6 +1692,7 @@ static int vhost_user_postcopy_advise(struct vhost_dev *dev, Error **errp)
     }
 
     if (vhost_user_read(dev, &msg) < 0) {
+        error_report("user_read_fail %u", __LINE__);
         error_setg(errp, "Failed to get postcopy_advise reply from vhost");
         return -1;
     }
@@ -1675,7 +1704,7 @@ static int vhost_user_postcopy_advise(struct vhost_dev *dev, Error **errp)
     }
 
     if (msg.hdr.size) {
-        error_setg(errp, "Received bad msg size.");
+        error_setg(errp, "Received bad msg size. 2");
         return -1;
     }
     ufd = qemu_chr_fe_get_msgfd(chr);
@@ -1717,7 +1746,9 @@ static int vhost_user_postcopy_listen(struct vhost_dev *dev, Error **errp)
         return -1;
     }
 
+		    printf("process reply start %d\n", __LINE__);
     ret = process_message_reply(dev, &msg);
+		    printf("process reply end %d\n", __LINE__);
     if (ret) {
         error_setg(errp, "Failed to receive reply to postcopy_listen");
         return ret;
@@ -1744,7 +1775,9 @@ static int vhost_user_postcopy_end(struct vhost_dev *dev, Error **errp)
         return -1;
     }
 
+		    printf("process reply start %d\n", __LINE__);
     ret = process_message_reply(dev, &msg);
+		    printf("process reply end %d\n", __LINE__);
     if (ret) {
         error_setg(errp, "Failed to receive reply to postcopy_end");
         return ret;
@@ -1809,6 +1842,7 @@ static int vhost_user_backend_init(struct vhost_dev *dev, void *opaque)
     dev->opaque = u;
 
     err = vhost_user_get_features(dev, &features);
+    printf("vhost_user_get_features returned %lx\n", features);
     if (err < 0) {
         return err;
     }
@@ -1818,6 +1852,7 @@ static int vhost_user_backend_init(struct vhost_dev *dev, void *opaque)
 
         err = vhost_user_get_u64(dev, VHOST_USER_GET_PROTOCOL_FEATURES,
                                  &protocol_features);
+	printf("get protocol features returned %lx\n", protocol_features);
         if (err < 0) {
             return err;
         }
@@ -1827,18 +1862,24 @@ static int vhost_user_backend_init(struct vhost_dev *dev, void *opaque)
 
         if (!dev->config_ops || !dev->config_ops->vhost_dev_config_notifier) {
             /* Don't acknowledge CONFIG feature if device doesn't support it */
+		printf("%s clear config\n", __func__);
             dev->protocol_features &= ~(1ULL << VHOST_USER_PROTOCOL_F_CONFIG);
         } else if (!(protocol_features &
                     (1ULL << VHOST_USER_PROTOCOL_F_CONFIG))) {
-            error_report("Device expects VHOST_USER_PROTOCOL_F_CONFIG "
-                    "but backend does not support it.");
+            printf("Device expects VHOST_USER_PROTOCOL_F_CONFIG "
+                    "but backend does not support it.\n");
             return -1;
         }
+
+	printf("%s call set protocol features %lx\n", __func__,dev->protocol_features);
 
         err = vhost_user_set_protocol_features(dev, dev->protocol_features);
         if (err < 0) {
             return err;
         }
+
+	printf("%s call set protocol features %lx success\n", __func__,dev->protocol_features);
+	printf("%s protocol features %s reply_ack\n", __func__,virtio_has_feature(dev->protocol_features, VHOST_USER_PROTOCOL_F_REPLY_ACK)?"has":"doesn't have");
 
         /* query the max queues we support if backend supports Multiple Queue */
         if (dev->protocol_features & (1ULL << VHOST_USER_PROTOCOL_F_MQ)) {
@@ -1848,6 +1889,7 @@ static int vhost_user_backend_init(struct vhost_dev *dev, void *opaque)
                 return err;
             }
         }
+	printf("%s call supports %lu queues\n", __func__,dev->max_queues);
 
         if (virtio_has_feature(features, VIRTIO_F_IOMMU_PLATFORM) &&
                 !(virtio_has_feature(dev->protocol_features,
@@ -1859,6 +1901,7 @@ static int vhost_user_backend_init(struct vhost_dev *dev, void *opaque)
             return -1;
         }
 
+		printf("%s check mem slots\n", __func__);
         /* get max memory regions if backend supports configurable RAM slots */
         if (!virtio_has_feature(dev->protocol_features,
                                 VHOST_USER_PROTOCOL_F_CONFIGURE_MEM_SLOTS)) {
@@ -1898,6 +1941,8 @@ static int vhost_user_backend_init(struct vhost_dev *dev, void *opaque)
 
     u->postcopy_notifier.notify = vhost_user_postcopy_notifier;
     postcopy_add_notifier(&u->postcopy_notifier);
+
+    printf("%s done\n", __func__);
 
     return 0;
 }
@@ -2018,7 +2063,10 @@ static int vhost_user_net_set_mtu(struct vhost_dev *dev, uint16_t mtu)
 
     /* If reply_ack supported, slave has to ack specified MTU is valid */
     if (reply_supported) {
-        return process_message_reply(dev, &msg);
+		    printf("process reply start %d\n", __LINE__);
+        int ret= process_message_reply(dev, &msg);
+		    printf("process reply end %d\n", __LINE__);
+		    return ret;
     }
 
     return 0;
@@ -2038,7 +2086,10 @@ static int vhost_user_send_device_iotlb_msg(struct vhost_dev *dev,
         return -EFAULT;
     }
 
-    return process_message_reply(dev, &msg);
+		    printf("process reply start %d\n", __LINE__);
+    int ret= process_message_reply(dev, &msg);
+		    printf("process reply end %d\n", __LINE__);
+		    return ret;
 }
 
 
@@ -2050,44 +2101,58 @@ static void vhost_user_set_iotlb_callback(struct vhost_dev *dev, int enabled)
 static int vhost_user_get_config(struct vhost_dev *dev, uint8_t *config,
                                  uint32_t config_len)
 {
+	printf("--dg get config %d\n", __LINE__);
     VhostUserMsg msg = {
         .hdr.request = VHOST_USER_GET_CONFIG,
         .hdr.flags = VHOST_USER_VERSION,
         .hdr.size = VHOST_USER_CONFIG_HDR_SIZE + config_len,
     };
 
+	printf("--dg get config %d\n", __LINE__);
     if (!virtio_has_feature(dev->protocol_features,
                 VHOST_USER_PROTOCOL_F_CONFIG)) {
         return -1;
     }
 
+	printf("--dg get config %d\n", __LINE__);
     if (config_len > VHOST_USER_MAX_CONFIG_SIZE) {
         return -1;
     }
 
+	printf("--dg get config %d\n", __LINE__);
     msg.payload.config.offset = 0;
     msg.payload.config.size = config_len;
     if (vhost_user_write(dev, &msg, NULL, 0) < 0) {
         return -1;
     }
 
+	printf("--dg get config call user_read %d\n", __LINE__);
     if (vhost_user_read(dev, &msg) < 0) {
+	printf("--dg get config user_read_fail %d\n", __LINE__);
+        error_report("user_read_fail %u", __LINE__);
         return -1;
     }
 
+	printf("--dg get config %d\n", __LINE__);
     if (msg.hdr.request != VHOST_USER_GET_CONFIG) {
+	printf("--dg get config %d -- %d %d\n", __LINE__,
+                     VHOST_USER_GET_CONFIG, msg.hdr.request);
         error_report("Received unexpected msg type. Expected %d received %d",
                      VHOST_USER_GET_CONFIG, msg.hdr.request);
         return -1;
     }
 
+	printf("--dg get config %d\n", __LINE__);
     if (msg.hdr.size != VHOST_USER_CONFIG_HDR_SIZE + config_len) {
-        error_report("Received bad msg size.");
+        error_report("Received bad msg size. 3 %u %lu %u", msg.hdr.size,
+		     VHOST_USER_CONFIG_HDR_SIZE, config_len);
         return -1;
     }
 
+	printf("--dg get config %d\n", __LINE__);
     memcpy(config, msg.payload.config.region, config_len);
 
+	printf("--dg get config %d\n", __LINE__);
     return 0;
 }
 
@@ -2098,6 +2163,7 @@ static int vhost_user_set_config(struct vhost_dev *dev, const uint8_t *data,
     bool reply_supported = virtio_has_feature(dev->protocol_features,
                                               VHOST_USER_PROTOCOL_F_REPLY_ACK);
 
+    printf("set_config\n");
     VhostUserMsg msg = {
         .hdr.request = VHOST_USER_SET_CONFIG,
         .hdr.flags = VHOST_USER_VERSION,
@@ -2128,7 +2194,10 @@ static int vhost_user_set_config(struct vhost_dev *dev, const uint8_t *data,
     }
 
     if (reply_supported) {
-        return process_message_reply(dev, &msg);
+		    printf("set_config process reply start %d\n", __LINE__);
+        int ret= process_message_reply(dev, &msg);
+		    printf("set_config process reply end %d\n", __LINE__);
+		    return ret;
     }
 
     return 0;
@@ -2170,6 +2239,7 @@ static int vhost_user_crypto_create_session(struct vhost_dev *dev,
     }
 
     if (vhost_user_read(dev, &msg) < 0) {
+        error_report("user_read_fail %u", __LINE__);
         error_report("vhost_user_read() return -1, create session failed");
         return -1;
     }
@@ -2256,6 +2326,7 @@ static int vhost_user_get_inflight_fd(struct vhost_dev *dev,
     }
 
     if (vhost_user_read(dev, &msg) < 0) {
+        error_report("user_read_fail %u", __LINE__);
         return -1;
     }
 
